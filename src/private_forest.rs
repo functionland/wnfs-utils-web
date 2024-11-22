@@ -1,8 +1,5 @@
-//! This example shows how to add a directory to a private forest (also HAMT) which encrypts it.
-//! It also shows how to retrieve encrypted nodes from the forest using `AccessKey`s.
-
 use async_trait::async_trait;
-use chrono::{prelude::*, Utc};
+use chrono::prelude::*;
 use futures::StreamExt;
 use libipld::Cid;
 use rand::{rngs::ThreadRng, thread_rng};
@@ -10,12 +7,16 @@ use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use rsa::{traits::PublicKeyParts, BigUint, Oaep, RsaPrivateKey, RsaPublicKey};
 use std::{
+    rc::Rc,
+    sync::Mutex,
+};
+
+// Platform-specific imports
+#[cfg(not(target_arch = "wasm32"))]
+use std::{
     fs::File,
     io::{Read, Write},
     os::unix::fs::MetadataExt,
-    rc::Rc,
-    sync::Mutex,
-    time::SystemTime,
 };
 
 use wnfs::{
@@ -32,42 +33,64 @@ use wnfs::{
 use anyhow::{anyhow, Result};
 use log::trace;
 use sha3::Sha3_256;
-
 use crate::blockstore::FFIFriendlyBlockStore;
+
+// Platform-specific imports
+#[cfg(not(target_arch = "wasm32"))]
+use std::{
+    fs::File,
+    io::{Read, Write},
+    os::unix::fs::MetadataExt,
+};
+
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::fs::File as TokioFile;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::io::Result as IoResult;
+#[cfg(not(target_arch = "wasm32"))]
+use async_std::fs::File as AsyncFile;
+#[cfg(not(target_arch = "wasm32"))]
+use async_std::io::BufReader;
+
+#[cfg(target_arch = "wasm32")]
+use web_sys::File as WebFile;
+
+#[cfg(target_arch = "wasm32")]
+use std::io::Result as IoResult;
+
+
 
 #[derive(Clone)]
 struct State {
     initialized: bool,
     wnfs_key: Vec<u8>,
 }
+
 impl State {
     fn update(&mut self, initialized: bool, wnfs_key: Vec<u8>) {
         self.initialized = initialized;
         self.wnfs_key = wnfs_key;
     }
 }
+
 static mut STATE: Mutex<State> = Mutex::new(State {
     initialized: false,
     wnfs_key: Vec::new(),
 });
 
-pub struct PrivateDirectoryHelper<'a> {
-    pub store: FFIFriendlyBlockStore<'a>,
+#[derive(Clone)]
+pub struct PrivateDirectoryHelper {
+    pub store: FFIFriendlyBlockStore,
     forest: Rc<HamtForest>,
     root_dir: Rc<PrivateDirectory>,
     rng: ThreadRng,
 }
 
-// Single root (private ref) implementation of the wnfs private directory using KVBlockStore.
-// TODO: we assumed all the write, mkdirs use same roots here. this could be done using prepend
-// a root path to all path segments.
-impl<'a> PrivateDirectoryHelper<'a> {
+impl PrivateDirectoryHelper {
     async fn reload(
-        store: &mut FFIFriendlyBlockStore<'a>,
+        store: &mut FFIFriendlyBlockStore,
         cid: Cid,
-    ) -> Result<PrivateDirectoryHelper<'a>, String> {
+    ) -> Result<PrivateDirectoryHelper, String> {
         let initialized: bool;
         let wnfs_key: Vec<u8>;
         unsafe {
@@ -98,7 +121,7 @@ impl<'a> PrivateDirectoryHelper<'a> {
     async fn setup_seeded_keypair_access(
         forest: &mut Rc<HamtForest>,
         access_key: AccessKey,
-        store: &mut FFIFriendlyBlockStore<'a>,
+        store: &mut FFIFriendlyBlockStore,
         seed: [u8; 32],
     ) -> Result<[u8; 32]> {
         let root_did = Self::bytes_to_hex_str(&seed);
@@ -147,9 +170,9 @@ impl<'a> PrivateDirectoryHelper<'a> {
     }
 
     async fn init(
-        store: &mut FFIFriendlyBlockStore<'a>,
+        store: &mut FFIFriendlyBlockStore,
         wnfs_key: Vec<u8>,
-    ) -> Result<(PrivateDirectoryHelper<'a>, AccessKey, Cid), String> {
+    ) -> Result<(PrivateDirectoryHelper, AccessKey, Cid), String> {
         let rng = &mut thread_rng();
         if wnfs_key.is_empty() {
             let err = "wnfskey is empty".to_string();
@@ -232,10 +255,10 @@ impl<'a> PrivateDirectoryHelper<'a> {
     }
 
     pub async fn load_with_wnfs_key(
-        store: &mut FFIFriendlyBlockStore<'a>,
+        store: &mut FFIFriendlyBlockStore,
         forest_cid: Cid,
         wnfs_key: Vec<u8>,
-    ) -> Result<PrivateDirectoryHelper<'a>, String> {
+    ) -> Result<PrivateDirectoryHelper, String> {
         trace!("wnfsutils: load_with_wnfs_key started");
         let rng = &mut thread_rng();
         let root_did: String;
@@ -347,7 +370,7 @@ impl<'a> PrivateDirectoryHelper<'a> {
     }
 
     async fn create_private_forest(
-        store: FFIFriendlyBlockStore<'a>,
+        store: FFIFriendlyBlockStore,
         rng: &mut ThreadRng,
     ) -> Result<(Rc<HamtForest>, Cid), String> {
         // Do a trusted setup for WNFS' name accumulators
@@ -371,7 +394,7 @@ impl<'a> PrivateDirectoryHelper<'a> {
     }
 
     async fn load_private_forest(
-        store: FFIFriendlyBlockStore<'a>,
+        store: FFIFriendlyBlockStore,
         forest_cid: Cid,
     ) -> Result<Rc<HamtForest>, String> {
         // Deserialize private forest from the blockstore.
@@ -388,7 +411,7 @@ impl<'a> PrivateDirectoryHelper<'a> {
     }
 
     pub async fn update_private_forest(
-        store: FFIFriendlyBlockStore<'a>,
+        store: FFIFriendlyBlockStore,
         forest: Rc<HamtForest>,
     ) -> Result<Cid, String> {
         // Serialize the private forest to DAG CBOR.
@@ -405,6 +428,7 @@ impl<'a> PrivateDirectoryHelper<'a> {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn get_file_as_byte_vec(&mut self, filename: &String) -> Result<(Vec<u8>, i64), String> {
         let f = File::open(&filename);
         if f.is_ok() {
@@ -430,6 +454,11 @@ impl<'a> PrivateDirectoryHelper<'a> {
             );
             Err("wnfsError no file found".to_string())
         }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn get_file_as_byte_vec(&mut self, _filename: &String) -> Result<(Vec<u8>, i64), String> {
+        Err("File operations not supported in WASM".to_string())
     }
 
     pub async fn write_file_from_path(
@@ -464,6 +493,7 @@ impl<'a> PrivateDirectoryHelper<'a> {
     }
 
     // The new get_file_as_stream method:
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn get_file_as_stream(&self, filename: &String) -> IoResult<(TokioFile, i64)> {
         let file = TokioFile::open(filename).await?;
         let metadata = tokio::fs::metadata(filename).await?;
@@ -474,14 +504,24 @@ impl<'a> PrivateDirectoryHelper<'a> {
             .duration_since(SystemTime::UNIX_EPOCH)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?
             .as_secs() as i64;
-
         Ok((file, modification_time_seconds))
     }
 
-    pub async fn write_file_stream_from_path(
+    #[cfg(target_arch = "wasm32")]
+    pub async fn get_file_as_stream(&self, _filename: &String) -> IoResult<(WebFile, i64)> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "File operations not supported in WASM"
+        ))
+    }
+
+    
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn write_file_stream(
         &mut self,
         path_segments: &[String],
-        filename: &String,
+        mut content: &mut BufReader<AsyncFile>,
+        modification_time_seconds: i64,
     ) -> Result<Cid, String> {
         let filedata = async_std::fs::File::open(filename).await;
         if let Ok(file) = filedata {
@@ -517,6 +557,17 @@ impl<'a> PrivateDirectoryHelper<'a> {
         }
     }
 
+    #[cfg(target_arch = "wasm32")]
+    pub async fn write_file_stream(
+        &mut self,
+        _path_segments: &[String],
+        _content: &mut Vec<u8>,
+        _modification_time_seconds: i64,
+    ) -> Result<Cid, String> {
+        Err("File streaming not supported in WASM".to_string())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn write_byte_vec_to_file(
         &mut self,
         filename: &String,
@@ -549,9 +600,17 @@ impl<'a> PrivateDirectoryHelper<'a> {
         }
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn write_byte_vec_to_file(
+        &mut self,
+        _filename: &String,
+        _file_content: Vec<u8>,
+    ) -> Result<bool, String> {
+        Err("File operations not supported in WASM".to_string())
+    }
+
     pub async fn write_file(
         &mut self,
-
         path_segments: &[String],
         content: Vec<u8>,
         modification_time_seconds: i64,
@@ -612,11 +671,11 @@ impl<'a> PrivateDirectoryHelper<'a> {
         }
     }
 
+
     pub async fn write_file_stream(
         &mut self,
-
         path_segments: &[String],
-        mut content: &mut async_std::io::BufReader<async_std::fs::File>,
+        content: &mut Vec<u8>,
         modification_time_seconds: i64,
     ) -> Result<Cid, String> {
         let forest = &mut self.forest;
@@ -643,7 +702,7 @@ impl<'a> PrivateDirectoryHelper<'a> {
             let write_res = file
                 .set_content(
                     modification_time_utc,
-                    &mut content,
+                    content,
                     forest,
                     &mut self.store,
                     &mut self.rng,
@@ -693,6 +752,7 @@ impl<'a> PrivateDirectoryHelper<'a> {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn read_filestream_to_path(
         &mut self,
         local_filename: &String,
@@ -765,6 +825,16 @@ impl<'a> PrivateDirectoryHelper<'a> {
             );
             Err(local_file.err().unwrap().to_string())
         }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn read_filestream_to_path(
+        &mut self,
+        _local_filename: &String,
+        _path_segments: &[String],
+        _index: usize,
+    ) -> Result<bool, String> {
+        Err("File operations not supported in WASM".to_string())
     }
 
     pub async fn read_file_to_path(
@@ -1037,20 +1107,20 @@ impl<'a> PrivateDirectoryHelper<'a> {
 }
 
 // Implement synced version of the library for using in android jni.
-impl<'a> PrivateDirectoryHelper<'a> {
+impl PrivateDirectoryHelper {
     pub fn synced_init(
-        store: &mut FFIFriendlyBlockStore<'a>,
+        store: &mut FFIFriendlyBlockStore,
         wnfs_key: Vec<u8>,
-    ) -> Result<(PrivateDirectoryHelper<'a>, AccessKey, Cid), String> {
+    ) -> Result<(PrivateDirectoryHelper, AccessKey, Cid), String> {
         let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
         return runtime.block_on(PrivateDirectoryHelper::init(store, wnfs_key));
     }
 
     pub fn synced_load_with_wnfs_key(
-        store: &mut FFIFriendlyBlockStore<'a>,
+        store: &mut FFIFriendlyBlockStore,
         forest_cid: Cid,
         wnfs_key: Vec<u8>,
-    ) -> Result<PrivateDirectoryHelper<'a>, String> {
+    ) -> Result<PrivateDirectoryHelper, String> {
         let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
         return runtime.block_on(PrivateDirectoryHelper::load_with_wnfs_key(
             store, forest_cid, wnfs_key,
@@ -1058,9 +1128,9 @@ impl<'a> PrivateDirectoryHelper<'a> {
     }
 
     pub fn synced_reload(
-        store: &mut FFIFriendlyBlockStore<'a>,
+        store: &mut FFIFriendlyBlockStore,
         forest_cid: Cid,
-    ) -> Result<PrivateDirectoryHelper<'a>, String> {
+    ) -> Result<PrivateDirectoryHelper, String> {
         let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
         return runtime.block_on(PrivateDirectoryHelper::reload(store, forest_cid));
     }
