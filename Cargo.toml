@@ -1,10 +1,10 @@
 [package]
 name = "wnfsutils"
-version = "1.1.5"
+version = "1.1.6"
 edition = "2021"
 description = "WNFS utilities for web applications"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/your-username/wnfs-utils-web"
+repository = "https://github.com/functionland/wnfs-utils-web"
 readme = "README.md"
 keywords = ["wnfs", "web", "storage", "encryption"]
 categories = ["wasm", "web-programming"]

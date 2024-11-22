@@ -10,7 +10,7 @@ This library is used with wnfs-android to feed custom blockstore to wnfs-android
 wasm-pack build --target web
 ```
 
-2. Install the generated package in your Next.js project:
+2. edit package name in pkg/package.json. Install the generated package in your Next.js project:
 
 ```
 npm install ../path/to/your/pkg
