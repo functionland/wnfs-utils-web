@@ -1,6 +1,8 @@
+//! This example shows how to add a directory to a private forest (also HAMT) which encrypts it.
+//! It also shows how to retrieve encrypted nodes from the forest using `AccessKey`s.
+
 use async_trait::async_trait;
-use chrono::prelude::*;
-use futures::StreamExt;
+use chrono::{prelude::*, Utc};
 use libipld::Cid;
 use rand::{rngs::ThreadRng, thread_rng};
 use rand_chacha::ChaCha12Rng;
@@ -9,14 +11,6 @@ use rsa::{traits::PublicKeyParts, BigUint, Oaep, RsaPrivateKey, RsaPublicKey};
 use std::{
     rc::Rc,
     sync::Mutex,
-};
-
-// Platform-specific imports
-#[cfg(not(target_arch = "wasm32"))]
-use std::{
-    fs::File,
-    io::{Read, Write},
-    os::unix::fs::MetadataExt,
 };
 
 use wnfs::{
@@ -33,64 +27,40 @@ use wnfs::{
 use anyhow::{anyhow, Result};
 use log::trace;
 use sha3::Sha3_256;
+
 use crate::blockstore::FFIFriendlyBlockStore;
-
-// Platform-specific imports
-#[cfg(not(target_arch = "wasm32"))]
-use std::{
-    fs::File,
-    io::{Read, Write},
-    os::unix::fs::MetadataExt,
-};
-
-#[cfg(not(target_arch = "wasm32"))]
-use tokio::fs::File as TokioFile;
-#[cfg(not(target_arch = "wasm32"))]
-use tokio::io::Result as IoResult;
-#[cfg(not(target_arch = "wasm32"))]
-use async_std::fs::File as AsyncFile;
-#[cfg(not(target_arch = "wasm32"))]
-use async_std::io::BufReader;
-
-#[cfg(target_arch = "wasm32")]
-use web_sys::File as WebFile;
-
-#[cfg(target_arch = "wasm32")]
-use std::io::Result as IoResult;
-
-
 
 #[derive(Clone)]
 struct State {
     initialized: bool,
     wnfs_key: Vec<u8>,
 }
-
 impl State {
     fn update(&mut self, initialized: bool, wnfs_key: Vec<u8>) {
         self.initialized = initialized;
         self.wnfs_key = wnfs_key;
     }
 }
-
 static mut STATE: Mutex<State> = Mutex::new(State {
     initialized: false,
     wnfs_key: Vec::new(),
 });
 
-#[derive(Clone)]
-pub struct PrivateDirectoryHelper {
-    pub store: FFIFriendlyBlockStore,
+pub struct PrivateDirectoryHelper<'a> {
+    pub store: FFIFriendlyBlockStore<'a>,
     forest: Rc<HamtForest>,
     root_dir: Rc<PrivateDirectory>,
     rng: ThreadRng,
 }
 
-impl PrivateDirectoryHelper {
+// Single root (private ref) implementation of the wnfs private directory using KVBlockStore.
+// TODO: we assumed all the write, mkdirs use same roots here. this could be done using prepend
+// a root path to all path segments.
+impl<'a> PrivateDirectoryHelper<'a> {
     async fn reload(
-        store: &mut FFIFriendlyBlockStore,
+        store: &mut FFIFriendlyBlockStore<'a>,
         cid: Cid,
-    ) -> Result<PrivateDirectoryHelper, String> {
+    ) -> Result<PrivateDirectoryHelper<'a>, String> {
         let initialized: bool;
         let wnfs_key: Vec<u8>;
         unsafe {
@@ -121,7 +91,7 @@ impl PrivateDirectoryHelper {
     async fn setup_seeded_keypair_access(
         forest: &mut Rc<HamtForest>,
         access_key: AccessKey,
-        store: &mut FFIFriendlyBlockStore,
+        store: &mut FFIFriendlyBlockStore<'a>,
         seed: [u8; 32],
     ) -> Result<[u8; 32]> {
         let root_did = Self::bytes_to_hex_str(&seed);
@@ -170,9 +140,9 @@ impl PrivateDirectoryHelper {
     }
 
     async fn init(
-        store: &mut FFIFriendlyBlockStore,
+        store: &mut FFIFriendlyBlockStore<'a>,
         wnfs_key: Vec<u8>,
-    ) -> Result<(PrivateDirectoryHelper, AccessKey, Cid), String> {
+    ) -> Result<(PrivateDirectoryHelper<'a>, AccessKey, Cid), String> {
         let rng = &mut thread_rng();
         if wnfs_key.is_empty() {
             let err = "wnfskey is empty".to_string();
@@ -255,10 +225,10 @@ impl PrivateDirectoryHelper {
     }
 
     pub async fn load_with_wnfs_key(
-        store: &mut FFIFriendlyBlockStore,
+        store: &mut FFIFriendlyBlockStore<'a>,
         forest_cid: Cid,
         wnfs_key: Vec<u8>,
-    ) -> Result<PrivateDirectoryHelper, String> {
+    ) -> Result<PrivateDirectoryHelper<'a>, String> {
         trace!("wnfsutils: load_with_wnfs_key started");
         let rng = &mut thread_rng();
         let root_did: String;
@@ -370,7 +340,7 @@ impl PrivateDirectoryHelper {
     }
 
     async fn create_private_forest(
-        store: FFIFriendlyBlockStore,
+        store: FFIFriendlyBlockStore<'a>,
         rng: &mut ThreadRng,
     ) -> Result<(Rc<HamtForest>, Cid), String> {
         // Do a trusted setup for WNFS' name accumulators
@@ -394,7 +364,7 @@ impl PrivateDirectoryHelper {
     }
 
     async fn load_private_forest(
-        store: FFIFriendlyBlockStore,
+        store: FFIFriendlyBlockStore<'a>,
         forest_cid: Cid,
     ) -> Result<Rc<HamtForest>, String> {
         // Deserialize private forest from the blockstore.
@@ -411,7 +381,7 @@ impl PrivateDirectoryHelper {
     }
 
     pub async fn update_private_forest(
-        store: FFIFriendlyBlockStore,
+        store: FFIFriendlyBlockStore<'a>,
         forest: Rc<HamtForest>,
     ) -> Result<Cid, String> {
         // Serialize the private forest to DAG CBOR.
@@ -428,189 +398,9 @@ impl PrivateDirectoryHelper {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    fn get_file_as_byte_vec(&mut self, filename: &String) -> Result<(Vec<u8>, i64), String> {
-        let f = File::open(&filename);
-        if f.is_ok() {
-            let metadata_res = std::fs::metadata(&filename);
-            if metadata_res.is_ok() {
-                let metadata = metadata_res.ok().unwrap();
-                let modification_time_seconds = metadata.mtime();
-
-                let mut buffer = vec![0; metadata.len() as usize];
-                f.ok().unwrap().read(&mut buffer).expect("buffer overflow");
-                Ok((buffer, modification_time_seconds))
-            } else {
-                trace!(
-                    "wnfsError in get_file_as_byte_vec, unable to read metadata: {:?}",
-                    metadata_res.err().unwrap()
-                );
-                Err("wnfsError unable to read metadata".to_string())
-            }
-        } else {
-            trace!(
-                "wnfsError in get_file_as_byte_vec, no file found: {:?}",
-                f.err().unwrap()
-            );
-            Err("wnfsError no file found".to_string())
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn get_file_as_byte_vec(&mut self, _filename: &String) -> Result<(Vec<u8>, i64), String> {
-        Err("File operations not supported in WASM".to_string())
-    }
-
-    pub async fn write_file_from_path(
-        &mut self,
-        path_segments: &[String],
-        filename: &String,
-    ) -> Result<Cid, String> {
-        let content: Vec<u8>;
-        let modification_time_seconds: i64;
-        let try_content = self.get_file_as_byte_vec(filename);
-        if try_content.is_ok() {
-            (content, modification_time_seconds) = try_content.ok().unwrap();
-            let writefile_res = self
-                .write_file(path_segments, content, modification_time_seconds)
-                .await;
-            if writefile_res.is_ok() {
-                Ok(writefile_res.ok().unwrap())
-            } else {
-                trace!(
-                    "wnfsError in write_file_from_path: {:?}",
-                    writefile_res.as_ref().err().unwrap()
-                );
-                Err(writefile_res.err().unwrap())
-            }
-        } else {
-            trace!(
-                "wnfsError in write_file_from_path: {:?}",
-                try_content.as_ref().err().unwrap()
-            );
-            Err(try_content.err().unwrap())
-        }
-    }
-
-    // The new get_file_as_stream method:
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async fn get_file_as_stream(&self, filename: &String) -> IoResult<(TokioFile, i64)> {
-        let file = TokioFile::open(filename).await?;
-        let metadata = tokio::fs::metadata(filename).await?;
-        let modified = metadata
-            .modified()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-        let modification_time_seconds = modified
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?
-            .as_secs() as i64;
-        Ok((file, modification_time_seconds))
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub async fn get_file_as_stream(&self, _filename: &String) -> IoResult<(WebFile, i64)> {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Unsupported,
-            "File operations not supported in WASM"
-        ))
-    }
-
-    
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async fn write_file_stream(
-        &mut self,
-        path_segments: &[String],
-        mut content: &mut BufReader<AsyncFile>,
-        modification_time_seconds: i64,
-    ) -> Result<Cid, String> {
-        let filedata = async_std::fs::File::open(filename).await;
-        if let Ok(file) = filedata {
-            let metadata = file.metadata().await;
-            if metadata.is_err() {
-                return Err(format!(
-                    "Failed to get file metadata: {:?}",
-                    metadata.err().unwrap()
-                ));
-            }
-            let modification_time_seconds = metadata
-                .unwrap()
-                .modified()
-                .unwrap()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64;
-            let mut reader = async_std::io::BufReader::new(file);
-            let writefile_res = self
-                .write_file_stream(path_segments, &mut reader, modification_time_seconds)
-                .await;
-            match writefile_res {
-                Ok(res) => Ok(res),
-                Err(e) => {
-                    trace!("wnfsError in write_file_stream_from_path: {:?}", e);
-                    Err(e.to_string())
-                }
-            }
-        } else {
-            let e = filedata.err().unwrap();
-            trace!("wnfsError in write_file_stream_from_path: {:?}", e);
-            Err(e.to_string())
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub async fn write_file_stream(
-        &mut self,
-        _path_segments: &[String],
-        _content: &mut Vec<u8>,
-        _modification_time_seconds: i64,
-    ) -> Result<Cid, String> {
-        Err("File streaming not supported in WASM".to_string())
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn write_byte_vec_to_file(
-        &mut self,
-        filename: &String,
-        file_content: Vec<u8>,
-    ) -> Result<bool, String> {
-        trace!("wnfs11 **********************write_byte_vec_to_file started**************filename={:?}", filename);
-        trace!("wnfs11 **********************write_byte_vec_to_file started**************file_content={:?}", file_content);
-        let file = File::create(filename);
-        if file.is_ok() {
-            let mut file_handler = file.ok().unwrap();
-            trace!(
-                "wnfs11 **********************write_byte_vec_to_file write created**************"
-            );
-            let write_res = file_handler.write_all(&file_content);
-            if write_res.is_ok() {
-                Ok(true)
-            } else {
-                trace!(
-                    "wnfsError occured in write_byte_vec_to_file on write_res {:?}",
-                    write_res.as_ref().err().unwrap().to_string()
-                );
-                Err(write_res.err().unwrap().to_string())
-            }
-        } else {
-            trace!(
-                "wnfsError occured in write_byte_vec_to_file on file {:?}",
-                file.as_ref().err().unwrap().to_string()
-            );
-            Err(file.err().unwrap().to_string())
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn write_byte_vec_to_file(
-        &mut self,
-        _filename: &String,
-        _file_content: Vec<u8>,
-    ) -> Result<bool, String> {
-        Err("File operations not supported in WASM".to_string())
-    }
-
     pub async fn write_file(
         &mut self,
+
         path_segments: &[String],
         content: Vec<u8>,
         modification_time_seconds: i64,
@@ -620,7 +410,7 @@ impl PrivateDirectoryHelper {
         let mut modification_time_utc: DateTime<Utc> = Utc::now();
         if modification_time_seconds > 0 {
             let naive_datetime =
-                NaiveDateTime::from_timestamp_opt(modification_time_seconds, 0).unwrap();
+            DateTime::from_timestamp(modification_time_seconds, 0).unwrap().naive_utc();
             modification_time_utc = DateTime::from_naive_utc_and_offset(naive_datetime, Utc);
         }
         let write_res = root_dir
@@ -668,198 +458,6 @@ impl PrivateDirectoryHelper {
                 write_res.as_ref().err().unwrap().to_string()
             );
             Err(write_res.err().unwrap().to_string())
-        }
-    }
-
-
-    pub async fn write_file_stream(
-        &mut self,
-        path_segments: &[String],
-        content: &mut Vec<u8>,
-        modification_time_seconds: i64,
-    ) -> Result<Cid, String> {
-        let forest = &mut self.forest;
-        let root_dir = &mut self.root_dir;
-        let mut modification_time_utc: DateTime<Utc> = Utc::now();
-        if modification_time_seconds > 0 {
-            let naive_datetime =
-                NaiveDateTime::from_timestamp_opt(modification_time_seconds, 0).unwrap();
-            modification_time_utc = DateTime::from_naive_utc_and_offset(naive_datetime, Utc);
-        }
-
-        let file_open_res = root_dir
-            .open_file_mut(
-                path_segments,
-                true,
-                modification_time_utc,
-                forest,
-                &mut self.store,
-                &mut self.rng,
-            )
-            .await;
-        if file_open_res.is_ok() {
-            let file = file_open_res.unwrap();
-            let write_res = file
-                .set_content(
-                    modification_time_utc,
-                    content,
-                    forest,
-                    &mut self.store,
-                    &mut self.rng,
-                )
-                .await;
-            if write_res.is_ok() {
-                // Private ref contains data and keys for fetching and decrypting the directory node in the private forest.
-                let access_key = root_dir
-                    .as_node()
-                    .store(forest, &mut self.store, &mut self.rng)
-                    .await;
-                if access_key.is_ok() {
-                    let forest_cid = PrivateDirectoryHelper::update_private_forest(
-                        self.store.to_owned(),
-                        forest.to_owned(),
-                    )
-                    .await;
-                    if forest_cid.is_ok() {
-                        Ok(forest_cid.ok().unwrap())
-                    } else {
-                        trace!(
-                            "wnfsError in write_file: {:?}",
-                            forest_cid.as_ref().err().unwrap().to_string()
-                        );
-                        Err(forest_cid.err().unwrap().to_string())
-                    }
-                } else {
-                    trace!(
-                        "wnfsError in write_file: {:?}",
-                        access_key.as_ref().err().unwrap().to_string()
-                    );
-                    Err(access_key.err().unwrap().to_string())
-                }
-            } else {
-                trace!(
-                    "wnfsError in write_file: {:?}",
-                    write_res.as_ref().err().unwrap().to_string()
-                );
-                Err(write_res.err().unwrap().to_string())
-            }
-        } else {
-            trace!(
-                "wnfsError in write_file_stream: {:?}",
-                file_open_res.as_ref().err().unwrap().to_string()
-            );
-            Err(file_open_res.err().unwrap().to_string())
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async fn read_filestream_to_path(
-        &mut self,
-        local_filename: &String,
-        path_segments: &[String],
-        index: usize,
-    ) -> Result<bool, String> {
-        let forest = &mut self.forest;
-        let root_dir = &mut self.root_dir;
-        //let mut stream_content: Vec<u8> = vec![];
-        let local_file = File::create(local_filename);
-        if local_file.is_ok() {
-            let mut local_file_handler = local_file.ok().unwrap();
-
-            let private_node_result = root_dir
-                .get_node(path_segments, true, forest, &mut self.store)
-                .await;
-            if private_node_result.is_ok() {
-                let result = private_node_result.ok().unwrap();
-                if result.is_some() {
-                    let private_node = result.unwrap();
-                    let is_file = private_node.is_file();
-                    if is_file {
-                        let file_res = private_node.as_file();
-                        if file_res.is_ok() {
-                            let file = file_res.ok().unwrap();
-                            let mut stream = file.stream_content(index, forest, &mut self.store);
-                            while let Some(block) = stream.next().await {
-                                if block.is_ok() {
-                                    let write_result =
-                                        local_file_handler.write_all(&block.unwrap());
-                                    if write_result.is_err() {
-                                        trace!("wnfsError occured in read_filestream_to_path on write_result: {:?}", write_result.as_ref().err().unwrap().to_string());
-                                    }
-                                } else {
-                                    trace!(
-                                        "wnfsError occured in read_filestream_to_path on file_res: {:?}",
-                                        block.as_ref().err().unwrap().to_string()
-                                    );
-                                    return Err(block.err().unwrap().to_string());
-                                }
-                                //stream_content.extend_from_slice(&block.unwrap());
-                            }
-                            Ok(true)
-                        } else {
-                            trace!(
-                                "wnfsError occured in read_filestream_to_path on file_res: {:?}",
-                                file_res.as_ref().err().unwrap().to_string()
-                            );
-                            Err(file_res.err().unwrap().to_string())
-                        }
-                    } else {
-                        trace!("wnfsError occured in read_filestream_to_path on is_file");
-                        Err("wnfsError occured in read_filestream_to_path on is_file".to_string())
-                    }
-                } else {
-                    trace!("wnfsError occured in read_filestream_to_path on result");
-                    Err("wnfsError occured in read_filestream_to_path on result".to_string())
-                }
-            } else {
-                trace!(
-                    "wnfsError occured in read_filestream_to_path on private_node_result: {:?}",
-                    private_node_result.as_ref().err().unwrap().to_string()
-                );
-                Err(private_node_result.err().unwrap().to_string())
-            }
-        } else {
-            trace!(
-                "wnfsError occured in read_filestream_to_path on local_file {:?}",
-                local_file.as_ref().err().unwrap().to_string()
-            );
-            Err(local_file.err().unwrap().to_string())
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub async fn read_filestream_to_path(
-        &mut self,
-        _local_filename: &String,
-        _path_segments: &[String],
-        _index: usize,
-    ) -> Result<bool, String> {
-        Err("File operations not supported in WASM".to_string())
-    }
-
-    pub async fn read_file_to_path(
-        &mut self,
-        path_segments: &[String],
-        filename: &String,
-    ) -> Result<String, String> {
-        let file_content_res = self.read_file(path_segments).await;
-        if file_content_res.is_ok() {
-            let res = self.write_byte_vec_to_file(filename, file_content_res.ok().unwrap());
-            if res.is_ok() {
-                Ok(filename.to_string())
-            } else {
-                trace!(
-                    "wnfsError occured in read_file_to_path on res: {:?}",
-                    res.as_ref().err().unwrap().to_string()
-                );
-                Err(res.err().unwrap().to_string())
-            }
-        } else {
-            trace!(
-                "wnfsError occured in read_file_to_path on file_content_res: {:?}",
-                file_content_res.as_ref().err().unwrap().to_string()
-            );
-            Err(file_content_res.err().unwrap().to_string())
         }
     }
 
@@ -1107,50 +705,41 @@ impl PrivateDirectoryHelper {
 }
 
 // Implement synced version of the library for using in android jni.
-impl PrivateDirectoryHelper {
+impl<'a> PrivateDirectoryHelper<'a> {
     pub fn synced_init(
-        store: &mut FFIFriendlyBlockStore,
+        store: &mut FFIFriendlyBlockStore<'a>,
         wnfs_key: Vec<u8>,
-    ) -> Result<(PrivateDirectoryHelper, AccessKey, Cid), String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+    ) -> Result<(PrivateDirectoryHelper<'a>, AccessKey, Cid), String> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+       .enable_all()
+       .build()
+       .expect("Unable to create a runtime");
         return runtime.block_on(PrivateDirectoryHelper::init(store, wnfs_key));
     }
 
     pub fn synced_load_with_wnfs_key(
-        store: &mut FFIFriendlyBlockStore,
+        store: &mut FFIFriendlyBlockStore<'a>,
         forest_cid: Cid,
         wnfs_key: Vec<u8>,
-    ) -> Result<PrivateDirectoryHelper, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+    ) -> Result<PrivateDirectoryHelper<'a>, String> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+       .enable_all()
+       .build()
+       .expect("Unable to create a runtime");
         return runtime.block_on(PrivateDirectoryHelper::load_with_wnfs_key(
             store, forest_cid, wnfs_key,
         ));
     }
 
     pub fn synced_reload(
-        store: &mut FFIFriendlyBlockStore,
+        store: &mut FFIFriendlyBlockStore<'a>,
         forest_cid: Cid,
-    ) -> Result<PrivateDirectoryHelper, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+    ) -> Result<PrivateDirectoryHelper<'a>, String> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+       .enable_all()
+       .build()
+       .expect("Unable to create a runtime");
         return runtime.block_on(PrivateDirectoryHelper::reload(store, forest_cid));
-    }
-
-    pub fn synced_write_file_from_path(
-        &mut self,
-        path_segments: &[String],
-        filename: &String,
-    ) -> Result<Cid, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-        return runtime.block_on(self.write_file_from_path(path_segments, filename));
-    }
-
-    pub fn synced_write_file_stream_from_path(
-        &mut self,
-        path_segments: &[String],
-        filename: &String,
-    ) -> Result<Cid, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-        return runtime.block_on(self.write_file_stream_from_path(path_segments, filename));
     }
 
     pub fn synced_write_file(
@@ -1159,7 +748,10 @@ impl PrivateDirectoryHelper {
         content: Vec<u8>,
         modification_time_seconds: i64,
     ) -> Result<Cid, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+       .enable_all()
+       .build()
+       .expect("Unable to create a runtime");
         return runtime.block_on(self.write_file(
             path_segments,
             content,
@@ -1167,36 +759,19 @@ impl PrivateDirectoryHelper {
         ));
     }
 
-    pub fn synced_read_file_to_path(
-        &mut self,
-        path_segments: &[String],
-        filename: &String,
-    ) -> Result<String, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-        return runtime.block_on(self.read_file_to_path(path_segments, filename));
-    }
-
     pub fn synced_read_file(&mut self, path_segments: &[String]) -> Result<Vec<u8>, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+       .enable_all()
+       .build()
+       .expect("Unable to create a runtime");
         return runtime.block_on(self.read_file(path_segments));
     }
 
-    pub fn synced_read_filestream_to_path(
-        &mut self,
-        local_filename: &String,
-        path_segments: &[String],
-        index: usize,
-    ) -> Result<bool, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
-        return runtime.block_on(self.read_filestream_to_path(
-            local_filename,
-            path_segments,
-            index,
-        ));
-    }
-
     pub fn synced_mkdir(&mut self, path_segments: &[String]) -> Result<Cid, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+       .enable_all()
+       .build()
+       .expect("Unable to create a runtime");
         return runtime.block_on(self.mkdir(path_segments));
     }
 
@@ -1205,7 +780,10 @@ impl PrivateDirectoryHelper {
         source_path_segments: &[String],
         target_path_segments: &[String],
     ) -> Result<Cid, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+       .enable_all()
+       .build()
+       .expect("Unable to create a runtime");
         return runtime.block_on(self.mv(source_path_segments, target_path_segments));
     }
 
@@ -1214,12 +792,18 @@ impl PrivateDirectoryHelper {
         source_path_segments: &[String],
         target_path_segments: &[String],
     ) -> Result<Cid, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+       .enable_all()
+       .build()
+       .expect("Unable to create a runtime");
         return runtime.block_on(self.cp(source_path_segments, target_path_segments));
     }
 
     pub fn synced_rm(&mut self, path_segments: &[String]) -> Result<Cid, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+       .enable_all()
+       .build()
+       .expect("Unable to create a runtime");
         return runtime.block_on(self.rm(path_segments));
     }
 
@@ -1227,7 +811,10 @@ impl PrivateDirectoryHelper {
         &mut self,
         path_segments: &[String],
     ) -> Result<Vec<(String, Metadata)>, String> {
-        let runtime = tokio::runtime::Runtime::new().expect("Unable to create a runtime");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+       .enable_all()
+       .build()
+       .expect("Unable to create a runtime");
         return runtime.block_on(self.ls_files(path_segments));
     }
 

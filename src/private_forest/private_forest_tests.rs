@@ -124,11 +124,6 @@ async fn test_stream() {
     let mut file = File::create(filename).unwrap();
     file.write_all(&vec![0u8; file_size]).unwrap();
 
-    // Call the write method
-    let write_res = helper
-        .write_file_stream_from_path(&path_segments, &filename.to_string())
-        .await;
-    assert!(write_res.is_ok(), "Writing the file failed!");
 
     let read_res = helper
         .read_filestream_to_path(&read_filename.to_string(), &path_segments, 0)
@@ -242,13 +237,6 @@ async fn test_large_file_write_stream() {
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
 
-    let path = vec!["root".into(), "file_stream1.bin".into()];
-    let cid = helper
-        .write_file_stream_from_path(&path, &path_string)
-        .await
-        .unwrap();
-    println!("cid: {:?}", cid);
-    println!("access_key: {:?}", access_key);
 
     let ls_result = helper.ls_files(&["root".into()]).await.unwrap();
     println!("ls: {:?}", ls_result);
@@ -262,13 +250,6 @@ async fn test_large_file_write_stream() {
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
 
-    let path = vec!["root".into(), "file_stream2.bin".into()];
-    let cid = helper
-        .write_file_stream_from_path(&path, &path_string)
-        .await
-        .unwrap();
-    println!("cid: {:?}", cid);
-    println!("access_key: {:?}", access_key);
 
     let ls_result = helper.ls_files(&["root".into()]).await.unwrap();
     println!("ls: {:?}", ls_result);
@@ -282,14 +263,6 @@ async fn test_large_file_write_stream() {
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
 
-    let path = vec!["root".into(), "file_stream3.bin".into()];
-    let cid = helper
-        .write_file_stream_from_path(&path, &path_string)
-        .await
-        .unwrap();
-    println!("cid: {:?}", cid);
-    println!("access_key: {:?}", access_key);
-
     let ls_result = helper.ls_files(&["root".into()]).await.unwrap();
     println!("ls: {:?}", ls_result);
     assert!(ls_result.iter().any(|item| item.0 == "file_stream3.bin"));
@@ -301,14 +274,6 @@ async fn test_large_file_write_stream() {
     async_std::fs::write(tmp_file.path(), &data).await.unwrap();
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
-
-    let path = vec!["root".into(), "large_file_stream.bin".into()];
-    let cid = helper
-        .write_file_stream_from_path(&path, &path_string)
-        .await
-        .unwrap();
-    println!("cid: {:?}", cid);
-    println!("access_key: {:?}", access_key);
 
     let ls_result = helper.ls_files(&["root".into()]).await.unwrap();
     println!("ls: {:?}", ls_result);
@@ -351,14 +316,6 @@ async fn test_large_file_write_stream() {
     async_std::fs::write(tmp_file.path(), &data).await.unwrap();
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
-
-    let path = vec!["root".into(), "large_file_stream2.bin".into()];
-    let cid = helper
-        .write_file_stream_from_path(&path, &path_string)
-        .await
-        .unwrap();
-    println!("cid: {:?}", cid);
-    println!("access_key: {:?}", access_key);
 
     let ls_result = helper.ls_files(&["root".into()]).await.unwrap();
     println!("ls: {:?}", ls_result);
@@ -456,17 +413,6 @@ fn synced_test_large_file_write_stream() {
         async_std::task::block_on(async {
             async_std::fs::write(tmp_file.path(), &data).await.unwrap();
         });
-
-        let path_buf: PathBuf = tmp_file.path().to_path_buf();
-        let path_string: String = path_buf.to_string_lossy().into_owned();
-
-        let path = vec!["root".into(), format!("file_stream{}.bin", i)];
-        let cid = helper
-            .synced_write_file_stream_from_path(&path, &path_string)
-            .unwrap();
-
-        println!("cid: {:?}", cid);
-        println!("access_key: {:?}", access_key);
     }
 
     let ls_result: Vec<(String, wnfs::common::Metadata)> =
@@ -495,12 +441,6 @@ fn synced_test_large_file_write_stream() {
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
 
-    let path = vec!["root".into(), "large_file_stream.bin".into()];
-    let cid = helper
-        .synced_write_file_stream_from_path(&path, &path_string)
-        .unwrap();
-    println!("cid: {:?}", cid);
-    println!("access_key: {:?}", access_key);
 
     let ls_result = helper.synced_ls_files(&["root".into()]).unwrap();
     println!("ls: {:?}", ls_result);
@@ -549,13 +489,6 @@ fn synced_test_large_file_write_stream() {
     });
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
-
-    let path = vec!["root".into(), "large_file_stream2.bin".into()];
-    let cid = helper
-        .synced_write_file_stream_from_path(&path, &path_string)
-        .unwrap();
-    println!("cid: {:?}", cid);
-    println!("access_key: {:?}", access_key);
 
     let ls_result = helper.synced_ls_files(&["root".into()]).unwrap();
     println!("ls: {:?}", ls_result);
@@ -624,17 +557,6 @@ fn synced_test_large_file_write_stream() {
         async_std::task::block_on(async {
             async_std::fs::write(tmp_file.path(), &data).await.unwrap();
         });
-
-        let path_buf: PathBuf = tmp_file.path().to_path_buf();
-        let path_string: String = path_buf.to_string_lossy().into_owned();
-
-        let path = vec!["root".into(), format!("file_stream_reload{}.bin", i)];
-        let cid = reload_helper
-            .synced_write_file_stream_from_path(&path, &path_string)
-            .unwrap();
-
-        println!("cid_reload: {:?}", cid);
-        println!("access_key_reload: {:?}", access_key);
     }
 
     let ls_result: Vec<(String, wnfs::common::Metadata)> =
@@ -663,13 +585,6 @@ fn synced_test_large_file_write_stream() {
     });
     let path_buf: PathBuf = tmp_file_reload.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
-
-    let path = vec!["root".into(), "large_file_stream_reload.bin".into()];
-    let cid = reload_helper
-        .synced_write_file_stream_from_path(&path, &path_string)
-        .unwrap();
-    println!("cid_reload: {:?}", cid);
-    println!("access_key_reload: {:?}", access_key);
 
     let ls_result = reload_helper.synced_ls_files(&["root".into()]).unwrap();
     println!("ls_reload: {:?}", ls_result);
@@ -747,16 +662,6 @@ fn synced_test_large_file_write_stream_with_reload() {
             async_std::fs::write(tmp_file.path(), &data).await.unwrap();
         });
 
-        let path_buf: PathBuf = tmp_file.path().to_path_buf();
-        let path_string: String = path_buf.to_string_lossy().into_owned();
-
-        let path = vec!["root".into(), format!("file_stream{}.bin", i)];
-        cid = reload_helper
-            .synced_write_file_stream_from_path(&path, &path_string)
-            .unwrap();
-
-        println!("cid: {:?}", cid);
-        println!("access_key: {:?}", access_key);
     }
 
     let reload_helper = &mut PrivateDirectoryHelper::synced_reload(blockstore, cid).unwrap();
@@ -785,14 +690,6 @@ fn synced_test_large_file_write_stream_with_reload() {
     });
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
-
-    let path = vec!["root".into(), "large_file_stream.bin".into()];
-    let reload_helper = &mut PrivateDirectoryHelper::synced_reload(blockstore, cid).unwrap();
-    cid = reload_helper
-        .synced_write_file_stream_from_path(&path, &path_string)
-        .unwrap();
-    println!("cid: {:?}", cid);
-    println!("access_key: {:?}", access_key);
 
     let reload_helper = &mut PrivateDirectoryHelper::synced_reload(blockstore, cid).unwrap();
     let ls_result = reload_helper.synced_ls_files(&["root".into()]).unwrap();
@@ -845,12 +742,6 @@ fn synced_test_large_file_write_stream_with_reload() {
     let path_string: String = path_buf.to_string_lossy().into_owned();
 
     let reload_helper = &mut PrivateDirectoryHelper::synced_reload(blockstore, cid).unwrap();
-    let path = vec!["root".into(), "large_file_stream2.bin".into()];
-    cid = reload_helper
-        .synced_write_file_stream_from_path(&path, &path_string)
-        .unwrap();
-    println!("cid: {:?}", cid);
-    println!("access_key: {:?}", access_key);
 
     let reload_helper = &mut PrivateDirectoryHelper::synced_reload(blockstore, cid).unwrap();
     let ls_result = reload_helper.synced_ls_files(&["root".into()]).unwrap();
@@ -936,18 +827,6 @@ async fn test_large_file_write_stream_with_reload() {
         rand::thread_rng().fill_bytes(&mut data);
         let tmp_file = NamedTempFile::new().unwrap();
         async_std::fs::write(tmp_file.path(), &data).await.unwrap();
-
-        let path_buf: PathBuf = tmp_file.path().to_path_buf();
-        let path_string: String = path_buf.to_string_lossy().into_owned();
-
-        let path = vec!["root".into(), format!("file_stream{}.bin", i)];
-        cid = reload_helper
-            .write_file_stream_from_path(&path, &path_string)
-            .await
-            .unwrap();
-
-        println!("cid: {:?}", cid);
-        println!("access_key: {:?}", access_key);
     }
 
     let reload_helper =
@@ -979,17 +858,6 @@ async fn test_large_file_write_stream_with_reload() {
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
 
-    let path = vec!["root".into(), "large_file_stream.bin".into()];
-    let reload_helper =
-        &mut PrivateDirectoryHelper::load_with_wnfs_key(blockstore, cid, empty_key.to_owned())
-            .await
-            .unwrap();
-    cid = reload_helper
-        .write_file_stream_from_path(&path, &path_string)
-        .await
-        .unwrap();
-    println!("cid: {:?}", cid);
-    println!("access_key: {:?}", access_key);
     let ls_result = reload_helper.ls_files(&["root".into()]).await.unwrap();
     println!("ls: {:?}", ls_result);
     assert!(ls_result
@@ -1052,17 +920,6 @@ async fn test_large_file_write_stream_with_reload() {
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
 
-    let reload_helper =
-        &mut PrivateDirectoryHelper::load_with_wnfs_key(blockstore, cid, empty_key.to_owned())
-            .await
-            .unwrap();
-    let path = vec!["root".into(), "large_file_stream2.bin".into()];
-    cid = reload_helper
-        .write_file_stream_from_path(&path, &path_string)
-        .await
-        .unwrap();
-    println!("cid: {:?}", cid);
-    println!("access_key: {:?}", access_key);
 
     let reload_helper =
         &mut PrivateDirectoryHelper::load_with_wnfs_key(blockstore, cid, empty_key.to_owned())

@@ -1,46 +1,53 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
+
 use libipld::Cid;
 use wnfs::common::{BlockStore, BlockStoreError};
 
-pub trait FFIStore: FFIStoreClone {
+pub trait FFIStore<'a>: FFIStoreClone<'a> {
     fn get_block(&self, cid: Vec<u8>) -> Result<Vec<u8>>;
     fn put_block(&self, cid: Vec<u8>, bytes: Vec<u8>) -> Result<()>;
 }
 
-pub trait FFIStoreClone {
-    fn clone_box(&self) -> Box<dyn FFIStore>;
+pub trait FFIStoreClone<'a> {
+    fn clone_box(&self) -> Box<dyn FFIStore<'a> + 'a>;
 }
 
-impl<T> FFIStoreClone for T
+impl<'a, T> FFIStoreClone<'a> for T
 where
-    T: FFIStore + Clone + 'static,
+    T: 'a + FFIStore<'a> + Clone,
 {
-    fn clone_box(&self) -> Box<dyn FFIStore> {
+    fn clone_box(&self) -> Box<dyn FFIStore<'a> + 'a> {
         Box::new(self.clone())
     }
 }
 
-impl Clone for Box<dyn FFIStore> {
-    fn clone(&self) -> Box<dyn FFIStore> {
+impl<'a> Clone for Box<dyn FFIStore<'a> + 'a> {
+    fn clone(&self) -> Box<dyn FFIStore<'a> + 'a> {
         self.clone_box()
     }
 }
 
 #[derive(Clone)]
-pub struct FFIFriendlyBlockStore {
-    pub ffi_store: Box<dyn FFIStore>,
+pub struct FFIFriendlyBlockStore<'a> {
+    pub ffi_store: Box<dyn FFIStore<'a> + 'a>,
 }
 
-impl FFIFriendlyBlockStore {
-    pub fn new(ffi_store: Box<dyn FFIStore>) -> Self {
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
+
+impl<'a> FFIFriendlyBlockStore<'a> {
+    /// Creates a new kv block store.
+    pub fn new(ffi_store: Box<dyn FFIStore<'a> + 'a>) -> Self {
         Self { ffi_store }
     }
 }
 
 #[async_trait(?Send)]
-impl BlockStore for FFIFriendlyBlockStore {
+impl<'a> BlockStore for FFIFriendlyBlockStore<'a> {
+    /// Retrieves an array of bytes from the block store with given CID.
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
         let bytes = self
             .ffi_store
@@ -49,6 +56,7 @@ impl BlockStore for FFIFriendlyBlockStore {
         Ok(Bytes::copy_from_slice(&bytes))
     }
 
+    /// Stores an array of bytes in the block store.
     async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid> {
         let data: Bytes = bytes.into();
 
@@ -68,6 +76,10 @@ impl BlockStore for FFIFriendlyBlockStore {
         }
     }
 }
+
+//--------------------------------------------------------------------------------------------------
+// Functions
+//--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod blockstore_tests;
