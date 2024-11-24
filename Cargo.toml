@@ -1,6 +1,6 @@
 [package]
 name = "wnfsutils"
-version = "1.1.8"
+version = "1.1.9"
 edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -24,7 +24,7 @@ sha3 = "0.10"
 futures = "0.3"
 rsa = "0.9"
 rand_chacha = "0.3"
-base64 = "0.13.0"
+base64 = "0.22.1"
 tempfile = "3.2"
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen-futures = "0.4.7"

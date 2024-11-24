@@ -704,22 +704,11 @@ impl<'a> PrivateDirectoryHelper<'a> {
 
 // Implement synced version of the library for using in android jni.
 impl<'a> PrivateDirectoryHelper<'a> {
-    pub fn synced_init(
+    pub async fn init_async(
         store: &mut FFIFriendlyBlockStore<'a>,
         wnfs_key: Vec<u8>,
     ) -> Result<(PrivateDirectoryHelper<'a>, AccessKey, Cid), String> {
-        #[cfg(target_arch = "wasm32")]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        #[cfg(not(target_arch = "wasm32"))]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        runtime.block_on(PrivateDirectoryHelper::init(store, wnfs_key))
+        PrivateDirectoryHelper::init(store, wnfs_key).await
     }
 
     pub fn synced_load_with_wnfs_key(
