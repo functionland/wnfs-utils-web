@@ -54,6 +54,15 @@ pub struct PrivateDirectoryHelper<'a> {
 // TODO: we assumed all the write, mkdirs use same roots here. this could be done using prepend
 // a root path to all path segments.
 impl<'a> PrivateDirectoryHelper<'a> {
+    // Public getter for the forest field
+    pub fn forest(&self) -> &Rc<HamtForest> {
+        &self.forest
+    }
+
+    // Public getter for the root_dir field (if needed)
+    pub fn root_dir(&self) -> &Rc<PrivateDirectory> {
+        &self.root_dir
+    }
     async fn reload(
         store: &mut FFIFriendlyBlockStore<'a>,
         cid: Cid,
