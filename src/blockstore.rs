@@ -5,9 +5,10 @@ use bytes::Bytes;
 use libipld::Cid;
 use wnfs::common::{BlockStore, BlockStoreError};
 
+#[async_trait(?Send)]
 pub trait FFIStore<'a>: FFIStoreClone<'a> {
-    fn get_block(&self, cid: Vec<u8>) -> Result<Vec<u8>>;
-    fn put_block(&self, cid: Vec<u8>, bytes: Vec<u8>) -> Result<()>;
+    async fn get_block(&self, cid: Vec<u8>) -> Result<Vec<u8>>;
+    async fn put_block(&self, cid: Vec<u8>, bytes: Vec<u8>) -> Result<()>;
 }
 
 pub trait FFIStoreClone<'a> {
@@ -52,6 +53,7 @@ impl<'a> BlockStore for FFIFriendlyBlockStore<'a> {
         let bytes = self
             .ffi_store
             .get_block(cid.to_bytes())
+            .await // Await the async method
             .map_err(|_| BlockStoreError::CIDNotFound(*cid))?;
         Ok(Bytes::copy_from_slice(&bytes))
     }
@@ -67,7 +69,8 @@ impl<'a> BlockStore for FFIFriendlyBlockStore<'a> {
                 let cid = cid_res.unwrap();
                 let result = self
                     .ffi_store
-                    .put_block(cid.to_owned().to_bytes(), data.to_vec());
+                    .put_block(cid.to_owned().to_bytes(), data.to_vec())
+                    .await; // Await the async method
                 match result {
                     Ok(_) => Ok(cid.to_owned()),
                     Err(e) => Err(e),
