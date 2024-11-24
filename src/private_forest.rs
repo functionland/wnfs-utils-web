@@ -711,164 +711,63 @@ impl<'a> PrivateDirectoryHelper<'a> {
         PrivateDirectoryHelper::init(store, wnfs_key).await
     }
 
-    pub fn synced_load_with_wnfs_key(
+    pub async fn load_with_wnfs_key_async(
         store: &mut FFIFriendlyBlockStore<'a>,
         forest_cid: Cid,
         wnfs_key: Vec<u8>,
     ) -> Result<PrivateDirectoryHelper<'a>, String> {
-        #[cfg(target_arch = "wasm32")]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        #[cfg(not(target_arch = "wasm32"))]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        runtime.block_on(PrivateDirectoryHelper::load_with_wnfs_key(
-            store, forest_cid, wnfs_key,
-        ))
+        PrivateDirectoryHelper::load_with_wnfs_key(store, forest_cid, wnfs_key).await
     }
 
-    pub fn synced_reload(
+    pub async fn reload_async(
         store: &mut FFIFriendlyBlockStore<'a>,
         forest_cid: Cid,
     ) -> Result<PrivateDirectoryHelper<'a>, String> {
-        #[cfg(target_arch = "wasm32")]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        #[cfg(not(target_arch = "wasm32"))]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        runtime.block_on(PrivateDirectoryHelper::reload(store, forest_cid))
+        PrivateDirectoryHelper::reload(store, forest_cid).await
     }
 
-    pub fn synced_write_file(
+    pub async fn write_file_async(
         &mut self,
         path_segments: &[String],
         content: Vec<u8>,
         modification_time_seconds: i64,
     ) -> Result<Cid, String> {
-        #[cfg(target_arch = "wasm32")]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        #[cfg(not(target_arch = "wasm32"))]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        runtime.block_on(self.write_file(path_segments, content, modification_time_seconds))
+        self.write_file(path_segments, content, modification_time_seconds).await
     }
     
-    pub fn synced_read_file(&mut self, path_segments: &[String]) -> Result<Vec<u8>, String> {
-        #[cfg(target_arch = "wasm32")]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        #[cfg(not(target_arch = "wasm32"))]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        runtime.block_on(self.read_file(path_segments))
+    pub async fn read_file_async(&mut self, path_segments: &[String]) -> Result<Vec<u8>, String> {
+        self.read_file(path_segments).await
     }
     
-    pub fn synced_mkdir(&mut self, path_segments: &[String]) -> Result<Cid, String> {
-        #[cfg(target_arch = "wasm32")]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        #[cfg(not(target_arch = "wasm32"))]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        runtime.block_on(self.mkdir(path_segments))
+    pub async fn mkdir_async(&mut self, path_segments: &[String]) -> Result<Cid, String> {
+        self.mkdir(path_segments).await
     }
     
-    pub fn synced_mv(
+    pub async fn mv_async(
         &mut self,
         source_path_segments: &[String],
         target_path_segments: &[String],
     ) -> Result<Cid, String> {
-        #[cfg(target_arch = "wasm32")]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        #[cfg(not(target_arch = "wasm32"))]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        runtime.block_on(self.mv(source_path_segments, target_path_segments))
+        self.mv(source_path_segments, target_path_segments).await
     }
     
-    pub fn synced_cp(
+    pub async fn cp_async(
         &mut self,
         source_path_segments: &[String],
         target_path_segments: &[String],
     ) -> Result<Cid, String> {
-        #[cfg(target_arch = "wasm32")]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        #[cfg(not(target_arch = "wasm32"))]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        runtime.block_on(self.cp(source_path_segments, target_path_segments))
+        self.cp(source_path_segments, target_path_segments).await
     }
     
-    pub fn synced_rm(&mut self, path_segments: &[String]) -> Result<Cid, String> {
-        #[cfg(target_arch = "wasm32")]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        #[cfg(not(target_arch = "wasm32"))]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        runtime.block_on(self.rm(path_segments))
+    pub async fn rm_async(&mut self, path_segments: &[String]) -> Result<Cid, String> {
+        self.rm(path_segments).await
     }
     
-    pub fn synced_ls_files(
+    pub async fn ls_files_async(
         &mut self,
         path_segments: &[String],
     ) -> Result<Vec<(String, Metadata)>, String> {
-        #[cfg(target_arch = "wasm32")]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        #[cfg(not(target_arch = "wasm32"))]
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .expect("Unable to create a runtime");
-    
-        runtime.block_on(self.ls_files(path_segments))
+        self.ls_files(path_segments).await
     }
 
     pub fn parse_path(path: String) -> Vec<String> {
