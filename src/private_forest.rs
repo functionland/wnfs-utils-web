@@ -2,7 +2,7 @@
 //! It also shows how to retrieve encrypted nodes from the forest using `AccessKey`s.
 
 use async_trait::async_trait;
-use chrono::{prelude::*, Utc};
+use chrono::prelude::*;
 use libipld::Cid;
 use rand::{rngs::ThreadRng, thread_rng};
 use rand_chacha::ChaCha12Rng;
@@ -708,11 +708,17 @@ impl<'a> PrivateDirectoryHelper<'a> {
         store: &mut FFIFriendlyBlockStore<'a>,
         wnfs_key: Vec<u8>,
     ) -> Result<(PrivateDirectoryHelper<'a>, AccessKey, Cid), String> {
+        #[cfg(target_arch = "wasm32")]
         let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time() // Enable time-based features if needed
             .build()
             .expect("Unable to create a runtime");
-
+    
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("Unable to create a runtime");
+    
         runtime.block_on(PrivateDirectoryHelper::init(store, wnfs_key))
     }
 
@@ -721,24 +727,38 @@ impl<'a> PrivateDirectoryHelper<'a> {
         forest_cid: Cid,
         wnfs_key: Vec<u8>,
     ) -> Result<PrivateDirectoryHelper<'a>, String> {
+        #[cfg(target_arch = "wasm32")]
         let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time() // Enable time-based features if needed
             .build()
             .expect("Unable to create a runtime");
-        return runtime.block_on(PrivateDirectoryHelper::load_with_wnfs_key(
+    
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("Unable to create a runtime");
+    
+        runtime.block_on(PrivateDirectoryHelper::load_with_wnfs_key(
             store, forest_cid, wnfs_key,
-        ));
+        ))
     }
 
     pub fn synced_reload(
         store: &mut FFIFriendlyBlockStore<'a>,
         forest_cid: Cid,
     ) -> Result<PrivateDirectoryHelper<'a>, String> {
+        #[cfg(target_arch = "wasm32")]
         let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time() // Enable time-based features if needed
             .build()
             .expect("Unable to create a runtime");
-        return runtime.block_on(PrivateDirectoryHelper::reload(store, forest_cid));
+    
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("Unable to create a runtime");
+    
+        runtime.block_on(PrivateDirectoryHelper::reload(store, forest_cid))
     }
 
     pub fn synced_write_file(
@@ -747,74 +767,119 @@ impl<'a> PrivateDirectoryHelper<'a> {
         content: Vec<u8>,
         modification_time_seconds: i64,
     ) -> Result<Cid, String> {
+        #[cfg(target_arch = "wasm32")]
         let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time() // Enable time-based features if needed
             .build()
             .expect("Unable to create a runtime");
-        return runtime.block_on(self.write_file(
-            path_segments,
-            content,
-            modification_time_seconds,
-        ));
+    
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("Unable to create a runtime");
+    
+        runtime.block_on(self.write_file(path_segments, content, modification_time_seconds))
     }
-
+    
     pub fn synced_read_file(&mut self, path_segments: &[String]) -> Result<Vec<u8>, String> {
+        #[cfg(target_arch = "wasm32")]
         let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time() // Enable time-based features if needed
             .build()
             .expect("Unable to create a runtime");
-        return runtime.block_on(self.read_file(path_segments));
+    
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("Unable to create a runtime");
+    
+        runtime.block_on(self.read_file(path_segments))
     }
-
+    
     pub fn synced_mkdir(&mut self, path_segments: &[String]) -> Result<Cid, String> {
+        #[cfg(target_arch = "wasm32")]
         let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time() // Enable time-based features if needed
             .build()
             .expect("Unable to create a runtime");
-        return runtime.block_on(self.mkdir(path_segments));
+    
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("Unable to create a runtime");
+    
+        runtime.block_on(self.mkdir(path_segments))
     }
-
+    
     pub fn synced_mv(
         &mut self,
         source_path_segments: &[String],
         target_path_segments: &[String],
     ) -> Result<Cid, String> {
+        #[cfg(target_arch = "wasm32")]
         let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time() // Enable time-based features if needed
             .build()
             .expect("Unable to create a runtime");
-        return runtime.block_on(self.mv(source_path_segments, target_path_segments));
+    
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("Unable to create a runtime");
+    
+        runtime.block_on(self.mv(source_path_segments, target_path_segments))
     }
-
+    
     pub fn synced_cp(
         &mut self,
         source_path_segments: &[String],
         target_path_segments: &[String],
     ) -> Result<Cid, String> {
+        #[cfg(target_arch = "wasm32")]
         let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time() // Enable time-based features if needed
             .build()
             .expect("Unable to create a runtime");
-        return runtime.block_on(self.cp(source_path_segments, target_path_segments));
+    
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("Unable to create a runtime");
+    
+        runtime.block_on(self.cp(source_path_segments, target_path_segments))
     }
-
+    
     pub fn synced_rm(&mut self, path_segments: &[String]) -> Result<Cid, String> {
+        #[cfg(target_arch = "wasm32")]
         let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time() // Enable time-based features if needed
             .build()
             .expect("Unable to create a runtime");
-        return runtime.block_on(self.rm(path_segments));
+    
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("Unable to create a runtime");
+    
+        runtime.block_on(self.rm(path_segments))
     }
-
+    
     pub fn synced_ls_files(
         &mut self,
         path_segments: &[String],
     ) -> Result<Vec<(String, Metadata)>, String> {
+        #[cfg(target_arch = "wasm32")]
         let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_time() // Enable time-based features if needed
             .build()
             .expect("Unable to create a runtime");
-        return runtime.block_on(self.ls_files(path_segments));
+    
+        #[cfg(not(target_arch = "wasm32"))]
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("Unable to create a runtime");
+    
+        runtime.block_on(self.ls_files(path_segments))
     }
 
     pub fn parse_path(path: String) -> Vec<String> {

@@ -28,7 +28,12 @@ base64 = "0.13.0"
 tempfile = "3.2"
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen-futures = "0.4.7"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.41.1", features = ["rt", "sync", "macros", "io-util", "time"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "1.41.1", features = ["rt", "sync", "macros", "io-util"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
