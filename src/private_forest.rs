@@ -711,10 +711,11 @@ impl<'a> PrivateDirectoryHelper<'a> {
         wnfs_key: Vec<u8>,
     ) -> Result<(PrivateDirectoryHelper<'a>, AccessKey, Cid), String> {
         let runtime = tokio::runtime::Builder::new_current_thread()
-       .enable_all()
-       .build()
-       .expect("Unable to create a runtime");
-        return runtime.block_on(PrivateDirectoryHelper::init(store, wnfs_key));
+            .enable_time() // Enable time-based features if needed
+            .build()
+            .expect("Unable to create a runtime");
+        
+        runtime.block_on(PrivateDirectoryHelper::init(store, wnfs_key))
     }
 
     pub fn synced_load_with_wnfs_key(
@@ -723,9 +724,9 @@ impl<'a> PrivateDirectoryHelper<'a> {
         wnfs_key: Vec<u8>,
     ) -> Result<PrivateDirectoryHelper<'a>, String> {
         let runtime = tokio::runtime::Builder::new_current_thread()
-       .enable_all()
-       .build()
-       .expect("Unable to create a runtime");
+            .enable_time() // Enable time-based features if needed
+            .build()
+            .expect("Unable to create a runtime");
         return runtime.block_on(PrivateDirectoryHelper::load_with_wnfs_key(
             store, forest_cid, wnfs_key,
         ));
@@ -736,9 +737,9 @@ impl<'a> PrivateDirectoryHelper<'a> {
         forest_cid: Cid,
     ) -> Result<PrivateDirectoryHelper<'a>, String> {
         let runtime = tokio::runtime::Builder::new_current_thread()
-       .enable_all()
-       .build()
-       .expect("Unable to create a runtime");
+            .enable_time() // Enable time-based features if needed
+            .build()
+            .expect("Unable to create a runtime");
         return runtime.block_on(PrivateDirectoryHelper::reload(store, forest_cid));
     }
 
@@ -749,9 +750,9 @@ impl<'a> PrivateDirectoryHelper<'a> {
         modification_time_seconds: i64,
     ) -> Result<Cid, String> {
         let runtime = tokio::runtime::Builder::new_current_thread()
-       .enable_all()
-       .build()
-       .expect("Unable to create a runtime");
+            .enable_time() // Enable time-based features if needed
+            .build()
+            .expect("Unable to create a runtime");
         return runtime.block_on(self.write_file(
             path_segments,
             content,
@@ -761,17 +762,17 @@ impl<'a> PrivateDirectoryHelper<'a> {
 
     pub fn synced_read_file(&mut self, path_segments: &[String]) -> Result<Vec<u8>, String> {
         let runtime = tokio::runtime::Builder::new_current_thread()
-       .enable_all()
-       .build()
-       .expect("Unable to create a runtime");
+            .enable_time() // Enable time-based features if needed
+            .build()
+            .expect("Unable to create a runtime");
         return runtime.block_on(self.read_file(path_segments));
     }
 
     pub fn synced_mkdir(&mut self, path_segments: &[String]) -> Result<Cid, String> {
         let runtime = tokio::runtime::Builder::new_current_thread()
-       .enable_all()
-       .build()
-       .expect("Unable to create a runtime");
+            .enable_time() // Enable time-based features if needed
+            .build()
+            .expect("Unable to create a runtime");
         return runtime.block_on(self.mkdir(path_segments));
     }
 
@@ -781,9 +782,9 @@ impl<'a> PrivateDirectoryHelper<'a> {
         target_path_segments: &[String],
     ) -> Result<Cid, String> {
         let runtime = tokio::runtime::Builder::new_current_thread()
-       .enable_all()
-       .build()
-       .expect("Unable to create a runtime");
+            .enable_time() // Enable time-based features if needed
+            .build()
+            .expect("Unable to create a runtime");
         return runtime.block_on(self.mv(source_path_segments, target_path_segments));
     }
 
@@ -793,17 +794,17 @@ impl<'a> PrivateDirectoryHelper<'a> {
         target_path_segments: &[String],
     ) -> Result<Cid, String> {
         let runtime = tokio::runtime::Builder::new_current_thread()
-       .enable_all()
-       .build()
-       .expect("Unable to create a runtime");
+            .enable_time() // Enable time-based features if needed
+            .build()
+            .expect("Unable to create a runtime");
         return runtime.block_on(self.cp(source_path_segments, target_path_segments));
     }
 
     pub fn synced_rm(&mut self, path_segments: &[String]) -> Result<Cid, String> {
         let runtime = tokio::runtime::Builder::new_current_thread()
-       .enable_all()
-       .build()
-       .expect("Unable to create a runtime");
+            .enable_time() // Enable time-based features if needed
+            .build()
+            .expect("Unable to create a runtime");
         return runtime.block_on(self.rm(path_segments));
     }
 
@@ -812,9 +813,9 @@ impl<'a> PrivateDirectoryHelper<'a> {
         path_segments: &[String],
     ) -> Result<Vec<(String, Metadata)>, String> {
         let runtime = tokio::runtime::Builder::new_current_thread()
-       .enable_all()
-       .build()
-       .expect("Unable to create a runtime");
+            .enable_time() // Enable time-based features if needed
+            .build()
+            .expect("Unable to create a runtime");
         return runtime.block_on(self.ls_files(path_segments));
     }
 
