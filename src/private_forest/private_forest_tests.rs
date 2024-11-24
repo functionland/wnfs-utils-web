@@ -124,7 +124,6 @@ async fn test_stream() {
     let mut file = File::create(filename).unwrap();
     file.write_all(&vec![0u8; file_size]).unwrap();
 
-
     let read_res = helper
         .read_filestream_to_path(&read_filename.to_string(), &path_segments, 0)
         .await;
@@ -237,7 +236,6 @@ async fn test_large_file_write_stream() {
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
 
-
     let ls_result = helper.ls_files(&["root".into()]).await.unwrap();
     println!("ls: {:?}", ls_result);
     assert!(ls_result.get(0).unwrap().0.contains("file_stream1.bin"));
@@ -249,7 +247,6 @@ async fn test_large_file_write_stream() {
     async_std::fs::write(tmp_file.path(), &data).await.unwrap();
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
-
 
     let ls_result = helper.ls_files(&["root".into()]).await.unwrap();
     println!("ls: {:?}", ls_result);
@@ -440,7 +437,6 @@ fn synced_test_large_file_write_stream() {
     });
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
-
 
     let ls_result = helper.synced_ls_files(&["root".into()]).unwrap();
     println!("ls: {:?}", ls_result);
@@ -661,7 +657,6 @@ fn synced_test_large_file_write_stream_with_reload() {
         async_std::task::block_on(async {
             async_std::fs::write(tmp_file.path(), &data).await.unwrap();
         });
-
     }
 
     let reload_helper = &mut PrivateDirectoryHelper::synced_reload(blockstore, cid).unwrap();
@@ -919,7 +914,6 @@ async fn test_large_file_write_stream_with_reload() {
 
     let path_buf: PathBuf = tmp_file.path().to_path_buf();
     let path_string: String = path_buf.to_string_lossy().into_owned();
-
 
     let reload_helper =
         &mut PrivateDirectoryHelper::load_with_wnfs_key(blockstore, cid, empty_key.to_owned())

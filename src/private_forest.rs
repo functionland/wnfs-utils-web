@@ -8,10 +8,7 @@ use rand::{rngs::ThreadRng, thread_rng};
 use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use rsa::{traits::PublicKeyParts, BigUint, Oaep, RsaPrivateKey, RsaPublicKey};
-use std::{
-    rc::Rc,
-    sync::Mutex,
-};
+use std::{rc::Rc, sync::Mutex};
 
 use wnfs::{
     common::{BlockStore, Metadata, CODEC_RAW},
@@ -409,8 +406,9 @@ impl<'a> PrivateDirectoryHelper<'a> {
         let root_dir = &mut self.root_dir;
         let mut modification_time_utc: DateTime<Utc> = Utc::now();
         if modification_time_seconds > 0 {
-            let naive_datetime =
-            DateTime::from_timestamp(modification_time_seconds, 0).unwrap().naive_utc();
+            let naive_datetime = DateTime::from_timestamp(modification_time_seconds, 0)
+                .unwrap()
+                .naive_utc();
             modification_time_utc = DateTime::from_naive_utc_and_offset(naive_datetime, Utc);
         }
         let write_res = root_dir
@@ -714,7 +712,7 @@ impl<'a> PrivateDirectoryHelper<'a> {
             .enable_time() // Enable time-based features if needed
             .build()
             .expect("Unable to create a runtime");
-        
+
         runtime.block_on(PrivateDirectoryHelper::init(store, wnfs_key))
     }
 
